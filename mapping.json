@@ -1,0 +1,367 @@
+{
+  "index": "logalerts",
+  "description": "Index containing deep packet inspection session logs, extracted payload artifacts, network metadata, and communication intelligence.",
+  "fields": {
+    "@timestamp": {
+      "type": "date",
+      "description": "Timestamp when the alert/session was recorded."
+    },
+    "acknowledged_by": {
+      "type": "text_keyword",
+      "description": "User who acknowledged the alert."
+    },
+
+    "analysis": {
+      "description": "Entity extraction and analysis results generated from content.",
+      "fields": {
+        "activities": {
+          "type": "keyword",
+          "description": "Activities detected in the analyzed content."
+        },
+        "email_ids": {
+          "type": "keyword",
+          "description": "Email addresses extracted from the analyzed content."
+        },
+        "location": {
+          "type": "keyword",
+          "description": "Locations mentioned or detected in the content."
+        },
+        "organization": {
+          "type": "keyword",
+          "description": "Organizations identified in the content."
+        },
+        "person": {
+          "type": "keyword",
+          "description": "Person names identified in the content."
+        },
+        "subjects": {
+          "type": "keyword",
+          "description": "Subjects or topics detected during analysis."
+        },
+        "urls": {
+          "type": "text",
+          "description": "URLs extracted from analyzed content."
+        },
+        "text": {
+          "type": "text",
+          "description": "Raw analyzed textual content."
+        },
+        "possible_languages": {
+          "type": "keyword",
+          "description": "Languages detected in the content."
+        },
+        "misc": {
+          "type": "keyword",
+          "description": "Miscellaneous entities extracted during analysis."
+        }
+      }
+    },
+
+    "appleak": {
+      "description": "Location information from Apple Leak dataset.",
+      "fields": {
+        "location": {
+          "type": "geo_point",
+          "description": "Geographic coordinates related to Apple leak data."
+        }
+      }
+    },
+
+    "appleak_location": {
+      "type": "boolean",
+      "description": "Indicates whether Apple leak location information exists."
+    },
+
+    "capture_filters": {
+      "description": "Filters used when capturing network sessions.",
+      "fields": {
+        "_id": {
+          "type": "text_keyword",
+          "description": "Unique identifier for the capture filter."
+        },
+        "assign_to": {
+          "type": "text_keyword",
+          "description": "User assigned to the capture filter."
+        },
+        "casename": {
+          "type": "text_keyword",
+          "description": "Case name associated with the filter."
+        },
+        "comment": {
+          "type": "text",
+          "description": "User comments about the capture filter."
+        },
+        "condition": {
+          "type": "text",
+          "description": "Logical condition used by the filter."
+        },
+        "name": {
+          "type": "text_keyword",
+          "description": "Name of the capture filter."
+        },
+        "targetvalue": {
+          "type": "keyword",
+          "description": "Target value used by the filter."
+        }
+      }
+    },
+
+    "categories_suggested": {
+      "type": "keyword",
+      "description": "Automatically suggested categories for the session."
+    },
+
+    "categories_suggested_at": {
+      "type": "date",
+      "description": "Timestamp when categories were suggested."
+    },
+
+    "categories_suggested_by": {
+      "type": "keyword",
+      "description": "User or system that suggested the category."
+    },
+
+    "network": {
+      "description": "Network layer metadata related to the session.",
+      "fields": {
+        "src_ip": {
+          "type": "ip",
+          "description": "Source IP address of the session."
+        },
+        "dst_ip": {
+          "type": "ip",
+          "description": "Destination IP address of the session."
+        },
+        "src_host": {
+          "type": "text_keyword",
+          "description": "Source host name."
+        },
+        "dst_host": {
+          "type": "text_keyword",
+          "description": "Destination host name."
+        },
+        "ip_protocol": {
+          "type": "keyword",
+          "description": "IP protocol used in the session."
+        },
+        "ip_version": {
+          "type": "short",
+          "description": "IP version used in the session (IPv4 or IPv6)."
+        },
+        "ip_addresses": {
+          "type": "ip",
+          "description": "List of IP addresses involved in the session."
+        },
+
+        "src_geo_ip": {
+          "description": "Geolocation information for source IP.",
+          "fields": {
+            "country_name": {
+              "type": "keyword",
+              "description": "Country of the source IP."
+            },
+            "city_name": {
+              "type": "keyword",
+              "description": "City of the source IP."
+            },
+            "location": {
+              "type": "geo_point",
+              "description": "Geographic coordinates of source IP."
+            },
+            "asn": {
+              "type": "integer",
+              "description": "Autonomous system number of the source IP."
+            },
+            "as_org": {
+              "type": "keyword",
+              "description": "Organization owning the ASN."
+            }
+          }
+        },
+
+        "dst_geo_ip": {
+          "description": "Geolocation information for destination IP.",
+          "fields": {
+            "country_name": {
+              "type": "keyword",
+              "description": "Country of the destination IP."
+            },
+            "city_name": {
+              "type": "keyword",
+              "description": "City of the destination IP."
+            },
+            "location": {
+              "type": "geo_point",
+              "description": "Geographic coordinates of destination IP."
+            },
+            "asn": {
+              "type": "integer",
+              "description": "Autonomous system number of destination IP."
+            },
+            "as_org": {
+              "type": "keyword",
+              "description": "Organization owning the ASN."
+            }
+          }
+        }
+      }
+    },
+
+    "transport": {
+      "description": "Transport layer metadata.",
+      "fields": {
+        "src_port": {
+          "type": "integer",
+          "description": "Source port number."
+        },
+        "dst_port": {
+          "type": "integer",
+          "description": "Destination port number."
+        },
+        "protocol": {
+          "type": "keyword",
+          "description": "Transport protocol used (TCP/UDP)."
+        }
+      }
+    },
+
+    "session": {
+      "description": "Session level metadata captured by the probe.",
+      "fields": {
+        "id": {
+          "type": "keyword",
+          "description": "Unique session identifier."
+        },
+        "protocol": {
+          "type": "keyword",
+          "description": "Application protocol detected in the session."
+        },
+        "start_time": {
+          "type": "date",
+          "description": "Start time of the session."
+        },
+        "duration": {
+          "type": "long",
+          "description": "Total duration of the session."
+        },
+        "total_bytes": {
+          "type": "long",
+          "description": "Total number of bytes transferred."
+        },
+        "received_bytes": {
+          "type": "long",
+          "description": "Bytes received from destination."
+        },
+        "transmitted_bytes": {
+          "type": "long",
+          "description": "Bytes sent to destination."
+        },
+        "probe_id": {
+          "type": "integer",
+          "description": "Identifier of the probe capturing the session."
+        },
+        "probe_ip": {
+          "type": "ip",
+          "description": "IP address of the probe device."
+        }
+      }
+    },
+
+    "payload": {
+      "description": "Application layer payload artifacts extracted from traffic.",
+      "fields": {
+        "dns_domain_names": {
+          "type": "keyword",
+          "description": "DNS domain names extracted from queries."
+        },
+        "email_from": {
+          "type": "keyword",
+          "description": "Sender email address detected in payload."
+        },
+        "email_to": {
+          "type": "keyword",
+          "description": "Recipient email addresses detected."
+        },
+        "email_subjects": {
+          "type": "text",
+          "description": "Email subject lines extracted."
+        },
+        "file_names": {
+          "type": "text",
+          "description": "File names transferred in the session."
+        },
+        "file_types": {
+          "type": "keyword",
+          "description": "Types of files transferred."
+        },
+        "http_host": {
+          "type": "keyword",
+          "description": "HTTP host header value."
+        },
+        "http_get": {
+          "type": "text",
+          "description": "HTTP GET request URLs."
+        },
+        "user_agent": {
+          "type": "keyword",
+          "description": "User agent string detected in HTTP traffic."
+        },
+        "ssl_version": {
+          "type": "keyword",
+          "description": "SSL/TLS protocol version used."
+        },
+        "ssl_server_name": {
+          "type": "keyword",
+          "description": "Server Name Indication from TLS handshake."
+        },
+
+        "smb_headers": {
+          "description": "SMB protocol headers.",
+          "fields": {
+            "smb_filename": {
+              "type": "text_keyword",
+              "description": "Filename referenced in SMB request."
+            },
+            "smb_path": {
+              "type": "keyword",
+              "description": "File path accessed through SMB."
+            },
+            "smb2_filename": {
+              "type": "text_keyword",
+              "description": "Filename accessed through SMB2 protocol."
+            },
+            "smb2_path": {
+              "type": "text_keyword",
+              "description": "File path accessed using SMB2 protocol."
+            }
+          }
+        }
+      }
+    },
+
+    "text": {
+      "type": "text",
+      "description": "Extracted textual content from session payload."
+    },
+
+    "text_summary": {
+      "type": "text",
+      "description": "Short summary of the extracted text."
+    },
+
+    "translated_text": {
+      "type": "text",
+      "description": "Translated version of extracted text."
+    },
+
+    "translated_text_summary": {
+      "type": "text",
+      "description": "Summary of translated text."
+    },
+
+    "system_name": {
+      "type": "keyword",
+      "description": "Name of the system generating the alert."
+    }
+  }
+}
