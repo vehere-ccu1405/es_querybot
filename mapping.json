@@ -1,367 +1,264 @@
-{
-  "index": "logalerts",
-  "description": "Index containing deep packet inspection session logs, extracted payload artifacts, network metadata, and communication intelligence.",
-  "fields": {
-    "@timestamp": {
-      "type": "date",
-      "description": "Timestamp when the alert/session was recorded."
-    },
-    "acknowledged_by": {
-      "type": "text_keyword",
-      "description": "User who acknowledged the alert."
-    },
-
-    "analysis": {
-      "description": "Entity extraction and analysis results generated from content.",
-      "fields": {
-        "activities": {
-          "type": "keyword",
-          "description": "Activities detected in the analyzed content."
-        },
-        "email_ids": {
-          "type": "keyword",
-          "description": "Email addresses extracted from the analyzed content."
-        },
-        "location": {
-          "type": "keyword",
-          "description": "Locations mentioned or detected in the content."
-        },
-        "organization": {
-          "type": "keyword",
-          "description": "Organizations identified in the content."
-        },
-        "person": {
-          "type": "keyword",
-          "description": "Person names identified in the content."
-        },
-        "subjects": {
-          "type": "keyword",
-          "description": "Subjects or topics detected during analysis."
-        },
-        "urls": {
-          "type": "text",
-          "description": "URLs extracted from analyzed content."
-        },
-        "text": {
-          "type": "text",
-          "description": "Raw analyzed textual content."
-        },
-        "possible_languages": {
-          "type": "keyword",
-          "description": "Languages detected in the content."
-        },
-        "misc": {
-          "type": "keyword",
-          "description": "Miscellaneous entities extracted during analysis."
-        }
-      }
-    },
-
-    "appleak": {
-      "description": "Location information from Apple Leak dataset.",
-      "fields": {
-        "location": {
-          "type": "geo_point",
-          "description": "Geographic coordinates related to Apple leak data."
-        }
-      }
-    },
-
-    "appleak_location": {
-      "type": "boolean",
-      "description": "Indicates whether Apple leak location information exists."
-    },
-
-    "capture_filters": {
-      "description": "Filters used when capturing network sessions.",
-      "fields": {
-        "_id": {
-          "type": "text_keyword",
-          "description": "Unique identifier for the capture filter."
-        },
-        "assign_to": {
-          "type": "text_keyword",
-          "description": "User assigned to the capture filter."
-        },
-        "casename": {
-          "type": "text_keyword",
-          "description": "Case name associated with the filter."
-        },
-        "comment": {
-          "type": "text",
-          "description": "User comments about the capture filter."
-        },
-        "condition": {
-          "type": "text",
-          "description": "Logical condition used by the filter."
-        },
-        "name": {
-          "type": "text_keyword",
-          "description": "Name of the capture filter."
-        },
-        "targetvalue": {
-          "type": "keyword",
-          "description": "Target value used by the filter."
-        }
-      }
-    },
-
-    "categories_suggested": {
-      "type": "keyword",
-      "description": "Automatically suggested categories for the session."
-    },
-
-    "categories_suggested_at": {
-      "type": "date",
-      "description": "Timestamp when categories were suggested."
-    },
-
-    "categories_suggested_by": {
-      "type": "keyword",
-      "description": "User or system that suggested the category."
-    },
-
-    "network": {
-      "description": "Network layer metadata related to the session.",
-      "fields": {
-        "src_ip": {
-          "type": "ip",
-          "description": "Source IP address of the session."
-        },
-        "dst_ip": {
-          "type": "ip",
-          "description": "Destination IP address of the session."
-        },
-        "src_host": {
-          "type": "text_keyword",
-          "description": "Source host name."
-        },
-        "dst_host": {
-          "type": "text_keyword",
-          "description": "Destination host name."
-        },
-        "ip_protocol": {
-          "type": "keyword",
-          "description": "IP protocol used in the session."
-        },
-        "ip_version": {
-          "type": "short",
-          "description": "IP version used in the session (IPv4 or IPv6)."
-        },
-        "ip_addresses": {
-          "type": "ip",
-          "description": "List of IP addresses involved in the session."
-        },
-
-        "src_geo_ip": {
-          "description": "Geolocation information for source IP.",
-          "fields": {
-            "country_name": {
-              "type": "keyword",
-              "description": "Country of the source IP."
-            },
-            "city_name": {
-              "type": "keyword",
-              "description": "City of the source IP."
-            },
-            "location": {
-              "type": "geo_point",
-              "description": "Geographic coordinates of source IP."
-            },
-            "asn": {
-              "type": "integer",
-              "description": "Autonomous system number of the source IP."
-            },
-            "as_org": {
-              "type": "keyword",
-              "description": "Organization owning the ASN."
-            }
-          }
-        },
-
-        "dst_geo_ip": {
-          "description": "Geolocation information for destination IP.",
-          "fields": {
-            "country_name": {
-              "type": "keyword",
-              "description": "Country of the destination IP."
-            },
-            "city_name": {
-              "type": "keyword",
-              "description": "City of the destination IP."
-            },
-            "location": {
-              "type": "geo_point",
-              "description": "Geographic coordinates of destination IP."
-            },
-            "asn": {
-              "type": "integer",
-              "description": "Autonomous system number of destination IP."
-            },
-            "as_org": {
-              "type": "keyword",
-              "description": "Organization owning the ASN."
-            }
-          }
-        }
-      }
-    },
-
-    "transport": {
-      "description": "Transport layer metadata.",
-      "fields": {
-        "src_port": {
-          "type": "integer",
-          "description": "Source port number."
-        },
-        "dst_port": {
-          "type": "integer",
-          "description": "Destination port number."
-        },
-        "protocol": {
-          "type": "keyword",
-          "description": "Transport protocol used (TCP/UDP)."
-        }
-      }
-    },
-
-    "session": {
-      "description": "Session level metadata captured by the probe.",
-      "fields": {
-        "id": {
-          "type": "keyword",
-          "description": "Unique session identifier."
-        },
-        "protocol": {
-          "type": "keyword",
-          "description": "Application protocol detected in the session."
-        },
-        "start_time": {
-          "type": "date",
-          "description": "Start time of the session."
-        },
-        "duration": {
-          "type": "long",
-          "description": "Total duration of the session."
-        },
-        "total_bytes": {
-          "type": "long",
-          "description": "Total number of bytes transferred."
-        },
-        "received_bytes": {
-          "type": "long",
-          "description": "Bytes received from destination."
-        },
-        "transmitted_bytes": {
-          "type": "long",
-          "description": "Bytes sent to destination."
-        },
-        "probe_id": {
-          "type": "integer",
-          "description": "Identifier of the probe capturing the session."
-        },
-        "probe_ip": {
-          "type": "ip",
-          "description": "IP address of the probe device."
-        }
-      }
-    },
-
-    "payload": {
-      "description": "Application layer payload artifacts extracted from traffic.",
-      "fields": {
-        "dns_domain_names": {
-          "type": "keyword",
-          "description": "DNS domain names extracted from queries."
-        },
-        "email_from": {
-          "type": "keyword",
-          "description": "Sender email address detected in payload."
-        },
-        "email_to": {
-          "type": "keyword",
-          "description": "Recipient email addresses detected."
-        },
-        "email_subjects": {
-          "type": "text",
-          "description": "Email subject lines extracted."
-        },
-        "file_names": {
-          "type": "text",
-          "description": "File names transferred in the session."
-        },
-        "file_types": {
-          "type": "keyword",
-          "description": "Types of files transferred."
-        },
-        "http_host": {
-          "type": "keyword",
-          "description": "HTTP host header value."
-        },
-        "http_get": {
-          "type": "text",
-          "description": "HTTP GET request URLs."
-        },
-        "user_agent": {
-          "type": "keyword",
-          "description": "User agent string detected in HTTP traffic."
-        },
-        "ssl_version": {
-          "type": "keyword",
-          "description": "SSL/TLS protocol version used."
-        },
-        "ssl_server_name": {
-          "type": "keyword",
-          "description": "Server Name Indication from TLS handshake."
-        },
-
-        "smb_headers": {
-          "description": "SMB protocol headers.",
-          "fields": {
-            "smb_filename": {
-              "type": "text_keyword",
-              "description": "Filename referenced in SMB request."
-            },
-            "smb_path": {
-              "type": "keyword",
-              "description": "File path accessed through SMB."
-            },
-            "smb2_filename": {
-              "type": "text_keyword",
-              "description": "Filename accessed through SMB2 protocol."
-            },
-            "smb2_path": {
-              "type": "text_keyword",
-              "description": "File path accessed using SMB2 protocol."
-            }
-          }
-        }
-      }
-    },
-
-    "text": {
-      "type": "text",
-      "description": "Extracted textual content from session payload."
-    },
-
-    "text_summary": {
-      "type": "text",
-      "description": "Short summary of the extracted text."
-    },
-
-    "translated_text": {
-      "type": "text",
-      "description": "Translated version of extracted text."
-    },
-
-    "translated_text_summary": {
-      "type": "text",
-      "description": "Summary of translated text."
-    },
-
-    "system_name": {
-      "type": "keyword",
-      "description": "Name of the system generating the alert."
-    }
-  }
-}
+[
+  {"field": "@timestamp", "type": "date", "description": "Timestamp when the event occurred"},
+  {"field": "acknowledged_by", "type": "text", "description": "User who acknowledged the alert"},
+  {"field": "acknowledged_by.keyword", "type": "keyword", "description": "User who acknowledged the alert (keyword)"},
+  {"field": "analysis.activities", "type": "keyword", "description": "Analysis activities identified"},
+  {"field": "analysis.email_ids", "type": "keyword", "description": "Email IDs found during analysis"},
+  {"field": "analysis.location", "type": "keyword", "description": "Location information from analysis"},
+  {"field": "analysis.misc", "type": "keyword", "description": "Miscellaneous analysis data"},
+  {"field": "analysis.organization", "type": "keyword", "description": "Organization identified in analysis"},
+  {"field": "analysis.person", "type": "keyword", "description": "Person identified in analysis"},
+  {"field": "analysis.possible_languages", "type": "keyword", "description": "Possible languages detected"},
+  {"field": "analysis.subjects", "type": "keyword", "description": "Subjects identified in analysis"},
+  {"field": "analysis.text", "type": "text", "description": "Text content from analysis"},
+  {"field": "analysis.urls", "type": "text", "description": "URLs identified during analysis"},
+  {"field": "appleak.location", "type": "geo_point", "description": "Geolocation of Apple leak"},
+  {"field": "appleak_location", "type": "boolean", "description": "Indicates if Apple leak location is present"},
+  {"field": "capture_filters._id", "type": "text", "description": "Capture filter ID"},
+  {"field": "capture_filters._id.keyword", "type": "keyword", "description": "Capture filter ID (keyword)"},
+  {"field": "capture_filters.assign_to", "type": "text", "description": "User assigned to capture filter"},
+  {"field": "capture_filters.assign_to.keyword", "type": "keyword", "description": "User assigned to capture filter (keyword)"},
+  {"field": "capture_filters.casename", "type": "text", "description": "Case name for capture filter"},
+  {"field": "capture_filters.casename.keyword", "type": "keyword", "description": "Case name for capture filter (keyword)"},
+  {"field": "capture_filters.comment", "type": "text", "description": "Comments on capture filter"},
+  {"field": "capture_filters.condition", "type": "text", "description": "Filter condition"},
+  {"field": "capture_filters.name", "type": "text", "description": "Capture filter name"},
+  {"field": "capture_filters.name.keyword", "type": "keyword", "description": "Capture filter name (keyword)"},
+  {"field": "categories_suggested", "type": "keyword", "description": "Suggested categories"},
+  {"field": "categories_suggested_at", "type": "date", "description": "When categories were suggested"},
+  {"field": "categories_suggested_by", "type": "keyword", "description": "Who suggested the categories"},
+  {"field": "datalink.dst_eth", "type": "keyword", "description": "Destination Ethernet address"},
+  {"field": "datalink.eth_protocol", "type": "keyword", "description": "Ethernet protocol"},
+  {"field": "datalink.eth_type", "type": "integer", "description": "Ethernet type value"},
+  {"field": "datalink.link_names", "type": "keyword", "description": "Data link names"},
+  {"field": "datalink.mpls_labels", "type": "integer", "description": "MPLS labels (array)"},
+  {"field": "datalink.src_eth", "type": "keyword", "description": "Source Ethernet address"},
+  {"field": "datalink.vlan_ids", "type": "integer", "description": "VLAN IDs (array)"},
+  {"field": "host", "type": "text", "description": "Host information"},
+  {"field": "filter_comments", "type": "text", "description": "Filter comments"},
+  {"field": "filter_names", "type": "text", "description": "Filter names"},
+  {"field": "filter_names.keyword", "type": "keyword", "description": "Filter names (keyword)"},
+  {"field": "gtp_apn", "type": "keyword", "description": "GTP Access Point Name"},
+  {"field": "gtp_imei_sv", "type": "keyword", "description": "GTP IMEI software version"},
+  {"field": "gtp_imsi", "type": "keyword", "description": "GTP IMSI identifier"},
+  {"field": "gtp_imsi_mcc", "type": "keyword", "description": "GTP IMSI Mobile Country Code"},
+  {"field": "gtp_imsi_mnc", "type": "keyword", "description": "GTP IMSI Mobile Network Code"},
+  {"field": "gtp_msisdn", "type": "keyword", "description": "GTP MSISDN phone number"},
+  {"field": "gtp_rai_lac", "type": "keyword", "description": "GTP RAI Location Area Code"},
+  {"field": "host.keyword", "type": "keyword", "description": "Host information (keyword)"},
+  {"field": "imported", "type": "byte", "description": "Import flag"},
+  {"field": "language_code", "type": "text", "description": "Language code detected"},
+  {"field": "language_found", "type": "text", "description": "Language found"},
+  {"field": "language_score", "type": "half_float", "description": "Language detection confidence score"},
+  {"field": "md5", "type": "keyword", "description": "MD5 hash value"},
+  {"field": "network.countries", "type": "keyword", "description": "Network-related countries"},
+  {"field": "network.detected_names", "type": "keyword", "description": "Detected network names"},
+  {"field": "network.dst_geo_ip.as_org", "type": "keyword", "description": "Destination AS organization"},
+  {"field": "network.dst_geo_ip.asn", "type": "integer", "description": "Destination AS number"},
+  {"field": "network.dst_geo_ip.city_name", "type": "keyword", "description": "Destination city name"},
+  {"field": "network.dst_geo_ip.country_code", "type": "keyword", "description": "Destination country code"},
+  {"field": "network.dst_geo_ip.country_name", "type": "keyword", "description": "Destination country name"},
+  {"field": "network.dst_geo_ip.latitude", "type": "half_float", "description": "Destination latitude"},
+  {"field": "network.dst_geo_ip.location", "type": "geo_point", "description": "Destination geolocation point"},
+  {"field": "network.dst_geo_ip.longitude", "type": "half_float", "description": "Destination longitude"},
+  {"field": "network.dst_geo_ip.region_name", "type": "keyword", "description": "Destination region name"},
+  {"field": "network.dst_host", "type": "text", "description": "Destination host"},
+  {"field": "network.dst_host.keyword", "type": "keyword", "description": "Destination host (keyword)"},
+  {"field": "network.dst_ip", "type": "ip", "description": "Destination IP address"},
+  {"field": "network.dst_ip_remark", "type": "keyword", "description": "Remarks about destination IP"},
+  {"field": "network.ip_addresses", "type": "ip", "description": "IP addresses (array)"},
+  {"field": "network.ip_protocol", "type": "keyword", "description": "IP protocol"},
+  {"field": "network.ip_version", "type": "short", "description": "IP version (4 or 6)"},
+  {"field": "network.max_frag_data_length", "type": "integer", "description": "Maximum fragment data length"},
+  {"field": "network.min_frag_data_length", "type": "integer", "description": "Minimum fragment data length"},
+  {"field": "network.src_geo_ip.as_org", "type": "keyword", "description": "Source AS organization"},
+  {"field": "network.src_geo_ip.asn", "type": "integer", "description": "Source AS number"},
+  {"field": "network.src_geo_ip.city_name", "type": "keyword", "description": "Source city name"},
+  {"field": "network.src_geo_ip.country_code", "type": "keyword", "description": "Source country code"},
+  {"field": "network.src_geo_ip.country_name", "type": "keyword", "description": "Source country name"},
+  {"field": "network.src_geo_ip.latitude", "type": "half_float", "description": "Source latitude"},
+  {"field": "network.src_geo_ip.location", "type": "geo_point", "description": "Source geolocation point"},
+  {"field": "network.src_geo_ip.longitude", "type": "half_float", "description": "Source longitude"},
+  {"field": "network.src_geo_ip.region_name", "type": "keyword", "description": "Source region name"},
+  {"field": "network.src_host", "type": "text", "description": "Source host"},
+  {"field": "network.src_host.keyword", "type": "keyword", "description": "Source host (keyword)"},
+  {"field": "network.src_ip", "type": "ip", "description": "Source IP address"},
+  {"field": "network.src_ip_remark", "type": "keyword", "description": "Remarks about source IP"},
+  {"field": "payload.dns_domain_names", "type": "keyword", "description": "DNS domain names with count"},
+  {"field": "payload.dns_headers.*", "type": "text", "description": "DNS headers"},
+  {"field": "payload.dns_headers.txt_data", "type": "text", "description": "DNS TXT record data"},
+  {"field": "payload.dns_ip_address", "type": "ip", "description": "DNS IP address"},
+  {"field": "payload.dtmf", "type": "keyword", "description": "DTMF tones detected"},
+  {"field": "payload.email_from", "type": "keyword", "description": "Email sender address"},
+  {"field": "payload.email_subjects", "type": "text", "description": "Email subjects"},
+  {"field": "payload.email_to", "type": "keyword", "description": "Email recipient address"},
+  {"field": "payload.fax_csi", "type": "keyword", "description": "Fax CSI identifier"},
+  {"field": "payload.fax_tsi", "type": "keyword", "description": "Fax TSI identifier"},
+  {"field": "payload.file_names", "type": "text", "description": "File names in payload"},
+  {"field": "payload.file_types", "type": "keyword", "description": "File types in payload"},
+  {"field": "payload.ftp_data_type", "type": "keyword", "description": "FTP data type"},
+  {"field": "payload.gsm_*", "type": "text", "description": "GSM protocol fields"},
+  {"field": "payload.h323_headers.call_identifier", "type": "text", "description": "H.323 call identifier"},
+  {"field": "payload.h323_headers.called_display", "type": "keyword", "description": "H.323 called display name"},
+  {"field": "payload.h323_headers.calling_display", "type": "keyword", "description": "H.323 calling display name"},
+  {"field": "payload.h323_headers.calling_number", "type": "text", "description": "H.323 calling number"},
+  {"field": "payload.h323_headers.conference_id", "type": "text", "description": "H.323 conference ID"},
+  {"field": "payload.h323_headers.protocol_identifier", "type": "text", "description": "H.323 protocol identifier"},
+  {"field": "payload.hget_*", "type": "keyword", "description": "HGET protocol fields"},
+  {"field": "payload.http_cookie", "type": "text", "description": "HTTP cookie"},
+  {"field": "payload.http_get", "type": "text", "description": "HTTP GET request"},
+  {"field": "payload.http_host", "type": "keyword", "description": "HTTP host header"},
+  {"field": "payload.http_server", "type": "keyword", "description": "HTTP server header"},
+  {"field": "payload.http_x_api_version", "type": "keyword", "description": "HTTP X-API-Version header"},
+  {"field": "payload.http_x_forwarded_for", "type": "keyword", "description": "HTTP X-Forwarded-For header"},
+  {"field": "payload.incorrect_login_attempt", "type": "keyword", "description": "Incorrect login attempt details"},
+  {"field": "payload.incorrect_login_attempts_count", "type": "short", "description": "Count of incorrect login attempts"},
+  {"field": "payload.irc_message", "type": "text", "description": "IRC message"},
+  {"field": "payload.is_ephemeral_cipher", "type": "short", "description": "Indicates ephemeral cipher usage"},
+  {"field": "payload.is_fax", "type": "short", "description": "Indicates fax transmission"},
+  {"field": "payload.machine.browser", "type": "keyword", "description": "Browser information"},
+  {"field": "payload.machine.device_name", "type": "keyword", "description": "Device name"},
+  {"field": "payload.machine.device_type", "type": "keyword", "description": "Device type"},
+  {"field": "payload.machine.platform", "type": "keyword", "description": "Platform information"},
+  {"field": "payload.machine_address", "type": "text", "description": "Machine address"},
+  {"field": "payload.megaco_headers.*", "type": "text", "description": "Megaco/H.248 headers"},
+  {"field": "payload.mtp3_headers.dpc", "type": "integer", "description": "MTP3 Destination Point Code"},
+  {"field": "payload.mtp3_headers.opc", "type": "integer", "description": "MTP3 Origination Point Code"},
+  {"field": "payload.national_numbers", "type": "text", "description": "National phone numbers"},
+  {"field": "payload.numbers", "type": "text", "description": "Phone numbers"},
+  {"field": "payload.numbers.keyword", "type": "keyword", "description": "Phone numbers (keyword)"},
+  {"field": "payload.password", "type": "keyword", "description": "Password detected"},
+  {"field": "payload.possible_ids", "type": "text", "description": "Possible identifiers"},
+  {"field": "payload.possible_ids.keyword", "type": "keyword", "description": "Possible identifiers (keyword)"},
+  {"field": "payload.radius_headers.user_name", "type": "keyword", "description": "RADIUS username"},
+  {"field": "payload.remarks", "type": "keyword", "description": "Payload remarks (array)"},
+  {"field": "payload.rtsp_headers.content_type", "type": "keyword", "description": "RTSP content type"},
+  {"field": "payload.s7comm_headers.*", "type": "text", "description": "S7 Communication headers"},
+  {"field": "payload.sctp_headers.protocol", "type": "keyword", "description": "SCTP protocol"},
+  {"field": "payload.sip_country_codes", "type": "keyword", "description": "SIP country codes (array)"},
+  {"field": "payload.sip_from_area_code", "type": "keyword", "description": "SIP From area code"},
+  {"field": "payload.sip_from_cc", "type": "keyword", "description": "SIP From country code"},
+  {"field": "payload.sip_from_cn", "type": "keyword", "description": "SIP From common name"},
+  {"field": "payload.sip_from_display", "type": "text", "description": "SIP From display name"},
+  {"field": "payload.sip_from_id", "type": "keyword", "description": "SIP From identifier"},
+  {"field": "payload.sip_from_parsed_id", "type": "keyword", "description": "Parsed SIP From identifier"},
+  {"field": "payload.sip_ids", "type": "text", "description": "SIP identifiers (array)"},
+  {"field": "payload.sip_national_number", "type": "text", "description": "SIP national number"},
+  {"field": "payload.sip_subject", "type": "text", "description": "SIP subject"},
+  {"field": "payload.sip_to_cc", "type": "keyword", "description": "SIP To country code"},
+  {"field": "payload.sip_to_cn", "type": "keyword", "description": "SIP To common name"},
+  {"field": "payload.sip_to_display", "type": "text", "description": "SIP To display name"},
+  {"field": "payload.sip_to_id", "type": "keyword", "description": "SIP To identifier"},
+  {"field": "payload.sip_to_parsed_id", "type": "keyword", "description": "Parsed SIP To identifier"},
+  {"field": "payload.sms_data", "type": "text", "description": "SMS message content"},
+  {"field": "payload.ssl_negotiated_cipher", "type": "keyword", "description": "SSL/TLS negotiated cipher"},
+  {"field": "payload.ssl_server_name", "type": "keyword", "description": "SSL/TLS server name"},
+  {"field": "payload.ssl_version", "type": "keyword", "description": "SSL/TLS version"},
+  {"field": "payload.sslhash_alert", "type": "keyword", "description": "SSL hash alert"},
+  {"field": "payload.telnet_headers", "type": "text", "description": "Telnet headers"},
+  {"field": "payload.tftp_headers.file_name", "type": "text", "description": "TFTP filename"},
+  {"field": "payload.time_zones", "type": "keyword", "description": "Time zones detected"},
+  {"field": "payload.tls_client_fingerprint", "type": "keyword", "description": "TLS client fingerprint"},
+  {"field": "payload.tls_server_fingerprint", "type": "keyword", "description": "TLS server fingerprint"},
+  {"field": "payload.uma_gsm_headers.dst_phone_number", "type": "keyword", "description": "UMA GSM destination phone number"},
+  {"field": "payload.uma_gsm_headers.src_phone_number", "type": "keyword", "description": "UMA GSM source phone number"},
+  {"field": "payload.user_agent", "type": "keyword", "description": "User agent string"},
+  {"field": "payload.user_id", "type": "keyword", "description": "User identifier"},
+  {"field": "payload.voip_routing_countries", "type": "text", "description": "VoIP routing countries"},
+  {"field": "recon.file_names", "type": "text", "description": "Reconnaissance file names"},
+  {"field": "recon.file_types", "type": "text", "description": "Reconnaissance file types"},
+  {"field": "recon.has_content", "type": "boolean", "description": "Indicates if recon has content"},
+  {"field": "recon.path", "type": "text", "description": "Reconnaissance path"},
+  {"field": "recon.possible_codecs", "type": "text", "description": "Possible codecs from recon"},
+  {"field": "remark", "type": "text", "description": "General remarks"},
+  {"field": "remarks.comment", "type": "text", "description": "Comment in remarks"},
+  {"field": "rtp_type_list", "type": "text", "description": "RTP type list"},
+  {"field": "session.app_group", "type": "keyword", "description": "Application group"},
+  {"field": "session.application", "type": "keyword", "description": "Application name"},
+  {"field": "session.client_tcp_initial_flags", "type": "keyword", "description": "Client TCP initial flags"},
+  {"field": "session.dpi_protocol", "type": "text", "description": "DPI protocol identification"},
+  {"field": "session.dst_os", "type": "keyword", "description": "Destination OS"},
+  {"field": "session.duration", "type": "long", "description": "Session duration in milliseconds"},
+  {"field": "session.id", "type": "keyword", "description": "Session identifier"},
+  {"field": "session.index_name", "type": "text", "description": "Index name"},
+  {"field": "session.input_file_name", "type": "keyword", "description": "Input file name"},
+  {"field": "session.possible_data_type", "type": "keyword", "description": "Possible data type"},
+  {"field": "session.possible_user_action", "type": "keyword", "description": "Possible user action"},
+  {"field": "session.probe_id", "type": "integer", "description": "Probe identifier"},
+  {"field": "session.probe_ip", "type": "ip", "description": "Probe IP address"},
+  {"field": "session.protocol", "type": "keyword", "description": "Session protocol"},
+  {"field": "session.received_bytes", "type": "long", "description": "Bytes received"},
+  {"field": "session.received_packets", "type": "integer", "description": "Packets received"},
+  {"field": "session.server_tcp_initial_flags", "type": "keyword", "description": "Server TCP initial flags"},
+  {"field": "session.src_os", "type": "keyword", "description": "Source OS"},
+  {"field": "session.start_time", "type": "date", "description": "Session start time"},
+  {"field": "session.total_bytes", "type": "long", "description": "Total bytes transferred"},
+  {"field": "session.total_packets", "type": "long", "description": "Total packets transferred"},
+  {"field": "session.total_payload_size", "type": "long", "description": "Total payload size"},
+  {"field": "session.transmitted_bytes", "type": "long", "description": "Bytes transmitted"},
+  {"field": "session.transmitted_packets", "type": "long", "description": "Packets transmitted"},
+  {"field": "session.url_category", "type": "keyword", "description": "URL category"},
+  {"field": "session.url_remark", "type": "keyword", "description": "URL remarks"},
+  {"field": "speaker_match", "type": "text", "description": "Speaker match information"},
+  {"field": "speaker_score", "type": "half_float", "description": "Speaker match confidence score"},
+  {"field": "system_name", "type": "keyword", "description": "System name"},
+  {"field": "text", "type": "text", "description": "General text content"},
+  {"field": "text_summary", "type": "text", "description": "Summary of text content"},
+  {"field": "transcripted_text", "type": "text", "description": "Transcribed text"},
+  {"field": "translated_processed", "type": "boolean", "description": "Indicates if translation was processed"},
+  {"field": "translated_text", "type": "text", "description": "Translated text"},
+  {"field": "translated_text_summary", "type": "text", "description": "Summary of translated text"},
+  {"field": "transport.dst_port", "type": "integer", "description": "Destination port"},
+  {"field": "transport.protocol", "type": "keyword", "description": "Transport protocol"},
+  {"field": "transport.src_port", "type": "integer", "description": "Source port"},
+  {"field": "commu_identifiers", "type": "keyword", "description": "Communication identifiers"},
+  {"field": "capture_filters.targetvalue", "type": "keyword", "description": "Capture filter target value"},
+  {"field": "session.dst_tcp_initial_flags", "type": "keyword", "description": "Destination TCP initial flags"},
+  {"field": "session.src_tcp_initial_flags", "type": "keyword", "description": "Source TCP initial flags"},
+  {"field": "network.tunnel_src_ip", "type": "ip", "description": "Tunnel source IP"},
+  {"field": "network.tunnel_dst_ip", "type": "ip", "description": "Tunnel destination IP"},
+  {"field": "payload.sip_pai", "type": "keyword", "description": "SIP P-Asserted-Identity"},
+  {"field": "payload.sip_pai_cc", "type": "keyword", "description": "SIP PAI country code"},
+  {"field": "payload.sip_pai_cn", "type": "keyword", "description": "SIP PAI common name"},
+  {"field": "payload.sip_pai_display", "type": "keyword", "description": "SIP PAI display name"},
+  {"field": "payload.sip_pai_id", "type": "keyword", "description": "SIP PAI identifier"},
+  {"field": "payload.sip_pai_parsed_id", "type": "keyword", "description": "Parsed SIP PAI identifier"},
+  {"field": "payload.sip_pai_url", "type": "keyword", "description": "SIP PAI URL"},
+  {"field": "payload.sip_p_access_network_info", "type": "keyword", "description": "SIP P-Access-Network-Info"},
+  {"field": "payload.sip_visited_network_id", "type": "keyword", "description": "SIP visited network ID"},
+  {"field": "session.call_status", "type": "keyword", "description": "Session call status"},
+  {"field": "session.term_clause", "type": "keyword", "description": "Session termination clause"},
+  {"field": "endpoints_swapped_with_confidence", "type": "keyword", "description": "Indicates if endpoints were swapped with confidence"},
+  {"field": "malware_remarks.signature", "type": "keyword", "description": "Malware signature remarks"},
+  {"field": "payload.arp_headers.opcode", "type": "keyword", "description": "ARP opcode"},
+  {"field": "payload.arp_headers.sender_ip", "type": "keyword", "description": "ARP sender IP"},
+  {"field": "payload.arp_headers.target_ip", "type": "keyword", "description": "ARP target IP"},
+  {"field": "payload.attribute_type", "type": "keyword", "description": "Attribute type"},
+  {"field": "payload.attribute_value", "type": "keyword", "description": "Attribute value"},
+  {"field": "payload.dns_headers.cname", "type": "keyword", "description": "DNS CNAME record"},
+  {"field": "payload.dns_headers.dns_record_type", "type": "text", "description": "DNS record type"},
+  {"field": "payload.icmp_code", "type": "keyword", "description": "ICMP code"},
+  {"field": "payload.icmp_type", "type": "keyword", "description": "ICMP type"},
+  {"field": "payload.kerberos_headers.error_code", "type": "keyword", "description": "Kerberos error code"},
+  {"field": "payload.ldap_headers.bindresponse_code", "type": "keyword", "description": "LDAP bind response code"},
+  {"field": "payload.smb_headers.msrpc_bind_iface_uuid", "type": "keyword", "description": "MSRPC bind interface UUID"},
+  {"field": "payload.smb_headers.msrpc_bind_minor_version", "type": "keyword", "description": "MSRPC bind minor version"},
+  {"field": "payload.smb_headers.msrpc_bind_version", "type": "keyword", "description": "MSRPC bind version"},
+  {"field": "payload.smb_headers.msrpc_key_file", "type": "keyword", "description": "MSRPC key file"},
+  {"field": "payload.smb_headers.msrpc_key_name", "type": "keyword", "description": "MSRPC key name"},
+  {"field": "payload.smb_headers.msrpc_opnum", "type": "keyword", "description": "MSRPC operation number"},
+  {"field": "payload.smb_headers.msrpc_pkt_type", "type": "keyword", "description": "MSRPC packet type"},
+  {"field": "payload.smb_headers.msrpc_service_name", "type": "keyword", "description": "MSRPC service name"},
+  {"field": "payload.smb_headers.smb_command", "type": "text", "description": "SMB command"},
+  {"field": "payload.smb_headers.smb_command.keyword", "type": "keyword", "description": "SMB command (keyword)"},
+  {"field": "payload.smb_headers.smb_filename", "type": "text", "description": "SMB filename"},
+  {"field": "payload.smb_headers.smb_filename.keyword", "type": "keyword", "description": "SMB filename (keyword)"},
+  {"field": "payload.smb_headers.smb_path", "type": "keyword", "description": "SMB path"},
+  {"field": "payload.smb_headers.smb2_command", "type": "text", "description": "SMB2 command"},
+  {"field": "payload.smb_headers.smb2_command.keyword", "type": "keyword", "description": "SMB2 command (keyword)"},
+  {"field": "payload.smb_headers.smb2_filename", "type": "text", "description": "SMB2 filename"},
+  {"field": "payload.smb_headers.smb2_filename.keyword", "type": "keyword", "description": "SMB2 filename (keyword)"},
+  {"field": "payload.smb_headers.smb2_name", "type": "text", "description": "SMB2 name"},
+  {"field": "payload.smb_headers.smb2_path", "type": "text", "description": "SMB2 path"},
+  {"field": "payload.smb_headers.smb2_path.keyword", "type": "keyword", "description": "SMB2 path (keyword)"}
+]
