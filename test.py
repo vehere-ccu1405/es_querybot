@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import numpy as np 
 import os
@@ -5,232 +7,175 @@ import faiss
 import pickle 
 from llama_cpp import Llama 
 from pathlib import Path
-from typing import List, Tuple, Dict, Any 
+from typing import List, Tuple, Dict, Any , Optional
+from dataclasses import field, dataclass
 
-EMBED_MODEL = "model/all-MiniLM-L6-v2-Q5_K_M.gguf"
-LLM_MODEL = "model/all-MiniLM-L6-v2-Q5_K_M.gguf"
-MAPPING_JSON_PATH = "mapping.json"
+EMBED_MODEL = "model/bge-small-en-v1.5.Q5_K_M.gguf"
+# EMBED_MODEL = "model/all-MiniLM-L6-v2-Q5_K_M.gguf"
+LLM_MODEL = "model/Qwen3.5-9B-Q4_K_M.gguf"
+MAPPING_JSON_PATH = "raw_mapping.json"
 INDEX_PATH = "embeddings/faiss_index.bin"
 DATA_PATH = "embeddings/field_data.pkl"
-EMBED_DIMENSION = 384
+EMBED_DIMENSION = 384 # for all-MiniLM-L6
 
+from field_enrichment_mapping import FIELD_ENRICHMENT
 
-
-def field_to_text(field:Dict[str, Any])->str:
-    raw_field = field.get("field","")
-    dtype = field.get("type","")
-    desc = field.get("description","")
+@dataclass
+class FieldEmbeddingExtraction:
+    raw_field:str
+    dtype:str
+    description:str
+    path_terms:list = field(default_factory=list)
+    is_nested:bool = False
+    parent_path:Optional[str] = None
+    synonyms:list = field(default_factory=list)
+    context_phrases:list = field(default_factory=list)
     
-    tokens = raw_field.replace("."," ").replace("_"," ").split()
-    leaf = tokens[-1] if tokens else raw_field
-    path_readable = " ".join(tokens)
     
-    # simple synonym map for very common leaves
-    SYNONYMS: Dict[str, str] = {
-        "timestamp": "time date when created occurred",
-        "email":     "email address mail contact",
-        "email_ids": "email address mail contact list",
-        "location":  "place geo country city region address coordinates",
-        "person":    "person individual name human",
-        "urls":      "url link website http",
-        "subjects":  "subject topic category",
-        "languages": "language locale lang spoken",
-        "organization": "org company firm institution",
-        "activities": "activity action event behaviour",
-        "text":      "content body message raw text",
-        "misc":      "miscellaneous other extra",
-        "assign_to": "assigned assignee owner user responsible",
-        "casename":  "case name title label",
-        "comment":   "comment note remark annotation",
-        "condition": "condition rule filter criteria",
-    }
-    synonyms = SYNONYMS.get(leaf, "")
-    print(
-        f"Field: {raw_field}\n"
-        f"Path tokens: {path_readable}\n"
-        f"Leaf name: {leaf}\n"
-        f"Data type: {dtype}\n"
-        f"Description: {desc}\n"
-        f"Related terms: {synonyms}"
+    def to_embedding_text(self)->str:
+        parts = [f"Field '{self.raw_field}' (Type:{self.dtype}): {self.description}."]
+        if self.is_nested:
+            parts.append(
+                f"Nested Field:'{self.path_terms[-1]}' lives inside '{self.parent_path}'"
+            )
+        if self.path_terms:
+            parts.append(f"Path components: {', '.join(self.path_terms)}")
+        if self.synonyms:
+            parts.append(f"Synonyms: {', '.join(self.synonyms)}")
+        if self.context_phrases:
+            parts.append(f"Usage examples: {' '.join(self.context_phrases)}")
+        
+        return " ".join(parts)
+    
+    
+def _enrich_fields(raw_field:str,dtype:str,description:str)->FieldEmbeddingExtraction:
+    parts = raw_field.split(".")
+    is_nested = len(parts)>1
+    parent_path = ".".join(parts[:-1]) if is_nested else None
+    enrichment = FIELD_ENRICHMENT.get(raw_field, {})
+    return FieldEmbeddingExtraction(
+        raw_field=raw_field,
+        dtype=dtype,
+        description=description,
+        path_terms=parts,
+        is_nested=is_nested,
+        parent_path=parent_path,
+        synonyms=enrichment.get("synonyms",[]),
+        context_phrases=enrichment.get("context_phrases",[])
     )
-    print("\n\n")
-    return (
-        f"Field: {raw_field}\n"
-        f"Path tokens: {path_readable}\n"
-        f"Leaf name: {leaf}\n"
-        f"Data type: {dtype}\n"
-        f"Description: {desc}\n"
-        f"Related terms: {synonyms}"
-    ).strip()
-
-
-class FieldExtraction:
-    def __init__(self,embed_model_path:str, embedding_dim:int):
-        self.embed_model_path = embed_model_path
-        self.embedding_dim = embedding_dim
-        self.fields_data = []
-        self.embeddings = None
-        self.index = None
-        self.embedding_model = None
-        self.llm = None
     
-    def load_models(self):
-        print(f"loading embedding model from {self.embed_model_path}...")
+    
+class QueryAnalyzer:
+    def __init__(self,embed_model_path=EMBED_MODEL,embedding_dim=EMBED_DIMENSION,index_path=INDEX_PATH,data_path=DATA_PATH):
         self.embedding_model = Llama(
-            model_path = self.embed_model_path,
-            embedding = True, 
-            logits_all=True,
-            verbose = False, 
-            n_ctx = 384 #limited by quantized model
+            model_path=embed_model_path,
+            embedding=True,
+            n_ctx=384, # 512
+            n_batch=384,
+            n_ubatch=384, # same as n_ctx
+            pooling_type=1,
+            n_threads=4,
+            verbose=False,
+            logits_all=True
         )
-        print("embedding model loaded...")
+        self.embedding_dim = embedding_dim
+        self.index: Optional[faiss.IndexFlatIP] = None
+        self.docs: List[FieldEmbeddingExtraction] = []
         
-        
+        if os.path.exists(index_path) and os.path.exists(data_path):
+            self.load_index(index_path,data_path)
+        else:
+            self.build_index(mapping_json_path,index_path,data_path)
+
+
+    def embed(self, texts:List[str])->np.ndarray:
+        vectors = []
+        for text in texts:
+            response = self.embedding_model.create_embedding(text)
+            vector = np.array(response["data"][0]["embedding"],dtype=np.float32)
+            vectors.append(vector)
+        matrix = np.vstack(vectors)
+        norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+        return matrix / np.maximum(norms,1e-10)
     
-    def load_json_fields(self, json_path:str):
-        print(f"loading schema fields from json {json_path}...")
-        with open(json_path, 'r',encoding='utf-8') as f:
-            self.fields_data = json.load(f)
-        print(f"Loaded {len(self.fields_data)} fields")
     
-    def create_json_text(self, field:Dict[str,Any]) ->str:
-        """create a text representation of a json object"""
-        return f"Field: {field['field']}\nType: {field['type']}\nDescription: {field['description']}"
-    
-    def get_embedding(self, text: str) -> np.ndarray:
-       
-        if not self.embedding_model:
-            raise ValueError("Model not loaded. Call load_model() first.")
+    def build_index(self,mapping_json_path=MAPPING_JSON_PATH,index_path=INDEX_PATH,data_path=DATA_PATH):
         
-        # Get embedding from llama.cpp
-        embeddings = self.embedding_model.create_embedding(text)
+        if os.path.exists(index_path) and os.path.exists(data_path):
+            print(f"Index and Data files already exist in Embeddings directory. Skipping build.")
+            return
         
-        token_vecs = np.array(
-            [entry["embedding"] for entry in embeddings["data"]], dtype=np.float32
-        )
-        vec = token_vecs.mean(axis=0)           # mean pooling
-        vec /= np.linalg.norm(vec) + 1e-10      # L2 normalisation
-        return vec
-    
-    def get_embeddings_batch(self, texts: List[str], batch_size: int = 64) -> np.ndarray:
+        print("Building Index")
         
-        vecs = []
-        for i, text in enumerate(texts):
-            vecs.append(self.get_embedding(text))
-            if (i + 1) % batch_size == 0:
-                print(f"Embedded {i + 1}/{len(texts)} fields...")
-        return np.array(vecs, dtype=np.float32)
-    
-    def create_embeddings(self, batch_size: int = 64):
-        if not self.fields_data:
-            raise ValueError("No fields loaded. Call load_json_fields() first.")
- 
-        texts = [field_to_text(f) for f in self.fields_data]
-        print(f"Creating embeddings for {len(texts)} fields …")
-        self.embeddings = self.get_embeddings_batch(texts, batch_size=batch_size)
-        print(f"Embeddings shape: {self.embeddings.shape}")
+        with open(mapping_json_path, 'r',encoding='utf-8') as f:
+            raw_fields = json.load(f)
         
-    def build_faiss_index(self):
-        if self.embeddings is None:
-            raise ValueError("No embeddings. Call create_embeddings() first.")
- 
-        print("Building FAISS index …")
-        n = len(self.embeddings)
- 
-        # For ≤ 10 k vectors a flat inner-product index is both fast and exact.
-        # For larger corpora swap in IndexIVFFlat or HNSW.
+        self.docs = [_enrich_fields(f["field"],f["type"],f["description"]) for f in raw_fields]
+                
+        print(f"Embedding {len(self.docs)} fields...")
+        
+        embeddings = self.embed([doc.to_embedding_text() for doc in self.docs]) 
+        
         self.index = faiss.IndexFlatIP(self.embedding_dim)
- 
-        # Vectors are already L2-normalised by sentence-transformers
-        # (normalize_embeddings=True), so inner-product == cosine similarity.
-        self.index.add(self.embeddings)
-        print(f"FAISS index contains {self.index.ntotal} vectors.")
+        self.index.add(embeddings)
         
-        
-    def save_index(self, index_path: str = INDEX_PATH, data_path: str = DATA_PATH):
-        os.makedirs(os.path.dirname(index_path), exist_ok=True)
+        Path(index_path).parent.mkdir(parents=True, exist_ok=True)
         faiss.write_index(self.index, index_path)
+        Path(data_path).parent.mkdir(parents=True, exist_ok=True)
         with open(data_path, "wb") as f:
-            pickle.dump({"fields_data": self.fields_data, "embeddings": self.embeddings}, f)
-        print(f"Saved index → {index_path}, data → {data_path}")
- 
-    def load_index(self, index_path: str = INDEX_PATH, data_path: str = DATA_PATH):
+            pickle.dump(self.docs, f)
+
+        print(f"Indexing Done. {len(self.docs)} fields indexed.")
+    
+    
+    def load_index(self, index_path=INDEX_PATH, data_path=DATA_PATH):
         self.index = faiss.read_index(index_path)
         with open(data_path, "rb") as f:
-            saved = pickle.load(f)
-        self.fields_data = saved["fields_data"]
-        self.embeddings  = saved["embeddings"]
-        print(f"Loaded index ({self.index.ntotal} vectors) and {len(self.fields_data)} fields.")
+            self.docs = pickle.load(f)
+        print(f"Loading Index. Loaded {len(self.docs)} fields.") 
     
-    def search(self, query: str, top_k: int = 5) -> List[Tuple[Dict, float]]:
-        """
-        Semantic search over fields.
- 
-        Returns list of (field_dict, cosine_similarity) sorted descending.
-        """
-        if self.index is None or not self.fields_data:
-            raise ValueError("Index not ready. Build or load it first.")
- 
-        q_vec = self.get_embedding(query).reshape(1, -1)
-        # already normalised → inner product == cosine similarity
-        scores, indices = self.index.search(q_vec, min(top_k, len(self.fields_data)))
- 
-        results = []
-        for score, idx in zip(scores[0], indices[0]):
-            if 0 <= idx < len(self.fields_data):
-                results.append((self.fields_data[idx], float(score)))
-        return results
- 
-    def search_with_threshold(
-        self, query: str, top_k: int = 5, min_score: float = 0.3
-    ) -> List[Tuple[Dict, float]]:
-        """Like search() but filters out low-confidence matches."""
-        return [(f, s) for f, s in self.search(query, top_k) if s >= min_score]
- 
- 
-# ── CLI / demo ────────────────────────────────────────────────────────────────
- 
-def _print_results(results: List[Tuple[Dict, float]], query: str):
-    print(f"\nQuery: '{query}'")
-    print("─" * 60)
-    if not results:
-        print("  (no results above threshold)")
-        return
-    for i, (field, score) in enumerate(results, 1):
-        print(f"  {i}. [{score:.4f}]  {field['field']}  ({field['type']})")
-        print(f"       {field.get('description', '')}")
- 
- 
-def main():
-    extractor = FieldExtraction(embed_model_path=EMBED_MODEL,embedding_dim=EMBED_DIMENSION)
- 
-    if os.path.exists(INDEX_PATH) and os.path.exists(DATA_PATH):
-        print("Loading existing index …")
-        extractor.load_models()
-        extractor.load_index(INDEX_PATH, DATA_PATH)
-    else:
-        print("Building new index …")
-        extractor.load_models()
-        extractor.load_json_fields(MAPPING_JSON_PATH)
-        extractor.create_embeddings()
-        extractor.build_faiss_index()
-        extractor.save_index(INDEX_PATH, DATA_PATH)
- 
-    test_queries = [
-        "fetch all data related to kritin@gmail.com",
-        "what data is coming from India",
-        "when was this record created",
-        "who is assigned to this case",
-        "detected language of message",
-        "GPS coordinates of device",
-        "filter by case name",
-        "raw message body text",
-    ]
- 
-    for q in test_queries:
-        results = extractor.search_with_threshold(q, top_k=3, min_score=0.25)
-        _print_results(results, q)
- 
- 
+    
+    def process_nl_query(self, nl_input:str, top_k:int=5):
+        if self.index is None:
+            raise RuntimeError("Index not loaded. Call build_index() or load_index().")
+        
+        q_vec = self.embed([nl_input])
+        scores, indices = self.index.search(q_vec,top_k)
+        similarity_search_results = []
+        for rank, (idx, score) in enumerate(zip(indices[0], scores[0]), start=1):
+            if idx == -1:
+                continue
+
+            doc = self.docs[idx]
+
+            similarity_search_results.append({
+                "rank": rank,
+                "score": float(score),
+                "raw_field": doc.raw_field,
+                "type": doc.dtype,
+                "description": doc.description,
+                "is_nested": doc.is_nested,
+                "parent_path": doc.parent_path,
+                "synonyms": doc.synonyms,
+            })
+        
+        related_fields = [res['raw_field'] for res in similarity_search_results] 
+        
+        return related_fields
+    
+    def generate_dsl_query()
+    
+    
 if __name__ == "__main__":
-    main()
+    query_analyzer = QueryAnalyzer()
+   
+    queries = [
+        "list all mails coming from abc@gmail.com",
+    ]
+    
+    for q in queries:
+        print(f"\nQuery: '{q}'")
+        print("-" * 60)
+        result = query_analyzer.process_query(q,top_k=5)
+        print(result)
+    
