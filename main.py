@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import json
+import re
 import numpy as np 
 import os
 import faiss
 import pickle 
+from opensearchpy import OpenSearch
 from llama_cpp import Llama 
 from pathlib import Path
 from typing import List, Tuple, Dict, Any , Optional
 from dataclasses import field, dataclass
+
+import urllib3
+urllib3.disable_warnings()
 
 EMBED_MODEL = "model/bge-small-en-v1.5.Q5_K_M.gguf"
 # EMBED_MODEL = "model/all-MiniLM-L6-v2-Q5_K_M.gguf"
@@ -19,54 +24,19 @@ DATA_PATH = "embeddings/field_data.pkl"
 EMBED_DIMENSION = 384 # for all-MiniLM-L6
 
 from field_enrichment_mapping import FIELD_ENRICHMENT
-
-# @dataclass
-# class FieldEmbeddingExtraction:
-#     raw_field:str
-#     dtype:str
-#     description:str
-#     path_terms:list = field(default_factory=list)
-#     is_nested:bool = False
-#     parent_path:Optional[str] = None
-#     synonyms:list = field(default_factory=list)
-#     context_phrases:list = field(default_factory=list)
-    
-    
-#     def to_embedding_text(self)->str:
-#         parts = [f"Field '{self.raw_field}' (Type:{self.dtype}): {self.description}."]
-#         if self.is_nested:
-#             parts.append(
-#                 f"Nested Field:'{self.path_terms[-1]}' lives inside '{self.parent_path}'"
-#             )
-#         if self.path_terms:
-#             parts.append(f"Path components: {', '.join(self.path_terms)}")
-#         if self.synonyms:
-#             parts.append(f"Synonyms: {', '.join(self.synonyms)}")
-#         if self.context_phrases:
-#             parts.append(f"Usage examples: {' '.join(self.context_phrases)}")
-        
-#         return " ".join(parts)
-    
-    
-# def _enrich_fields(raw_field:str,dtype:str,description:str)->FieldEmbeddingExtraction:
-#     parts = raw_field.split(".")
-#     is_nested = len(parts)>1
-#     parent_path = ".".join(parts[:-1]) if is_nested else None
-#     enrichment = FIELD_ENRICHMENT.get(raw_field, {})
-#     return FieldEmbeddingExtraction(
-#         raw_field=raw_field,
-#         dtype=dtype,
-#         description=description,
-#         path_terms=parts,
-#         is_nested=is_nested,
-#         parent_path=parent_path,
-#         synonyms=enrichment.get("synonyms",[]),
-#         context_phrases=enrichment.get("context_phrases",[])
-#     )
-    
     
 class QueryAnalyzer:
     def __init__(self,embed_model_path=EMBED_MODEL,embedding_dim=EMBED_DIMENSION,mapping_json_path=MAPPING_JSON_PATH,index_path=INDEX_PATH,data_path=DATA_PATH):
+        print("Initializing QueryAnalyzer...")
+        PATTERNS = [
+            r"^logvehere-alerts-\d{8}$",
+            r"^logvehere-probe-\d{8}$",
+            r"^logvehere-probe-ma-\d{8}$",
+            r"^logvehere-probe-tm-\d{8}$",
+        ]
+
+        self.compiled_patterns = [re.compile(P) for P in PATTERNS]
+    
         self.embedding_model = Llama(
             model_path=embed_model_path,
             embedding=True,
@@ -78,6 +48,14 @@ class QueryAnalyzer:
             verbose=False,
             logits_all=True
         )
+        
+        self.db_client = OpenSearch(
+            hosts=[{"host": "10.1.3.110", "port": 9200}],
+            http_auth=("admin", "admin"),
+            use_ssl=True,
+            verify_certs=False
+        )   
+        
         self.embedding_dim = embedding_dim
         self.index: Optional[faiss.IndexFlatIP] = None
         self.docs: List[dict] = []
@@ -142,10 +120,8 @@ class QueryAnalyzer:
         with open(mapping_json_path, 'r',encoding='utf-8') as f:
             raw_fields = json.load(f)
         
-        self.docs = [self._enrich_field(f["field"],f["type"],f["description"]) for f in raw_fields]
-                
+        self.docs = [self._enrich_field(f["field"],f["type"],f["description"]) for f in raw_fields]     
         print(f"Embedding {len(self.docs)} fields...")
-        
         embeddings = self.embed([self._to_embedding_text(doc) for doc in self.docs]) 
         
         self.index = faiss.IndexFlatIP(self.embedding_dim)
@@ -174,22 +150,6 @@ class QueryAnalyzer:
         q_vec = self.embed([nl_input])
         scores, indices = self.index.search(q_vec,top_k)
         similarity_search_results = []
-        # for rank, (idx, score) in enumerate(zip(indices[0], scores[0]), start=1):
-        #     if idx == -1:
-        #         continue
-
-        #     doc = self.docs[idx]
-
-        #     similarity_search_results.append({
-        #         "rank": rank,
-        #         "score": float(score),
-        #         "raw_field": doc.raw_field,
-        #         "type": doc.dtype,
-        #         "description": doc.description,
-        #         "is_nested": doc.is_nested,
-        #         "parent_path": doc.parent_path,
-        #         "synonyms": doc.synonyms,
-        #     })
         
         for rank, (idx, score) in enumerate(zip(indices[0], scores[0]), start=1):
             if idx == -1:     
@@ -210,6 +170,17 @@ class QueryAnalyzer:
         
         return related_fields
     
+    def fetch_relevant_indices(self):
+        
+        all_indices = self.db_client.cat.indices(format="json")
+        # print(f"No.of Indices: {len(all_indices)}")
+               
+        filtered_indices = [
+            idx["index"] for idx in all_indices 
+            if any(p.match(idx["index"]) for p in self.compiled_patterns)
+        ]
+        
+        return filtered_indices
     
     def generate_dsl_query(self):
         pass
@@ -217,7 +188,8 @@ class QueryAnalyzer:
     
 if __name__ == "__main__":
     query_analyzer = QueryAnalyzer()
-   
+    
+    print("Fetched Indices:",query_analyzer.fetch_relevant_indices())
     queries = [
         "list all mails coming from abc@gmail.com",
     ]
