@@ -17,26 +17,56 @@ urllib3.disable_warnings()
 
 EMBED_MODEL = "model/bge-small-en-v1.5.Q5_K_M.gguf"
 # EMBED_MODEL = "model/all-MiniLM-L6-v2-Q5_K_M.gguf"
-LLM_MODEL = "model/Qwen3.5-9B-Q4_K_M.gguf"
+LLM_MODEL = "/model/Qwen3.5-9B-Q4_K_M.gguf"
 MAPPING_JSON_PATH = "raw_mapping.json"
 INDEX_PATH = "embeddings/faiss_index.bin"
 DATA_PATH = "embeddings/field_data.pkl"
-EMBED_DIMENSION = 384 # for all-MiniLM-L6
+EMBED_DIMENSION = 384 # for all-MiniLM-L6 & bge-small-en-v1.5
 
 from field_enrichment_mapping import FIELD_ENRICHMENT
     
 class QueryAnalyzer:
-    def __init__(self,embed_model_path=EMBED_MODEL,embedding_dim=EMBED_DIMENSION,mapping_json_path=MAPPING_JSON_PATH,index_path=INDEX_PATH,data_path=DATA_PATH):
+    def __init__(
+        self,
+        llm_model_path=LLM_MODEL,
+        embed_model_path=EMBED_MODEL,
+        embedding_dim=EMBED_DIMENSION,
+        mapping_json_path=MAPPING_JSON_PATH,
+        index_path=INDEX_PATH,
+        data_path=DATA_PATH):
+    
         print("Initializing QueryAnalyzer...")
+        
         PATTERNS = [
             r"^logvehere-alerts-\d{8}$",
-            r"^logvehere-probe-\d{8}$",
+            # r"^logvehere-probe-\d{8}$",
             r"^logvehere-probe-ma-\d{8}$",
             r"^logvehere-probe-tm-\d{8}$",
         ]
 
         self.compiled_patterns = [re.compile(P) for P in PATTERNS]
-    
+
+        # check correct parameter values
+        # self.llm = Llama(
+        #     model_path=llm_model_path,
+        #     embedding=True,
+        #     n_ctx=8192, # 512
+        #     n_batch=384,
+        #     n_ubatch=384, # same as n_ctx
+        #     pooling_type=1,
+        #     n_threads=4,
+        #     verbose=False,
+        #     logits_all=True
+        # )
+        
+        self.llm = Llama(
+            model_path=llm_model_path,
+            embedding=False,
+            n_ctx=8192,
+            n_threads=8,
+            verbose=False
+        )
+        
         self.embedding_model = Llama(
             model_path=embed_model_path,
             embedding=True,
@@ -66,7 +96,7 @@ class QueryAnalyzer:
             self.build_index(mapping_json_path,index_path,data_path)
 
 
-    def _enrich_field(self, raw_field: str, dtype: str, description: str) -> dict:
+    def _enrich_field(self,raw_field:str,dtype:str,description:str) ->dict:
         parts = raw_field.split(".")
         is_nested = len(parts) > 1
         parent_path = ".".join(parts[:-1]) if is_nested else None
@@ -109,8 +139,12 @@ class QueryAnalyzer:
         return matrix / np.maximum(norms,1e-10)
     
     
-    def build_index(self,mapping_json_path=MAPPING_JSON_PATH,index_path=INDEX_PATH,data_path=DATA_PATH):
-        
+    def build_index(
+        self,
+        mapping_json_path=MAPPING_JSON_PATH,
+        index_path=INDEX_PATH,
+        data_path=DATA_PATH
+    ):
         if os.path.exists(index_path) and os.path.exists(data_path):
             print(f"Index and Data files already exist in Embeddings directory. Skipping build.")
             return
@@ -170,33 +204,124 @@ class QueryAnalyzer:
         
         return related_fields
     
+    
     def fetch_relevant_indices(self):
-        
         all_indices = self.db_client.cat.indices(format="json")
-        # print(f"No.of Indices: {len(all_indices)}")
-               
+        # print(f"No.of Indices: {len(all_indices)}")    
         filtered_indices = [
             idx["index"] for idx in all_indices 
             if any(p.match(idx["index"]) for p in self.compiled_patterns)
         ]
-        
         return filtered_indices
     
-    def generate_dsl_query(self):
-        pass
+    
+    def _build_prompt(
+        self,
+        previous_queries:List, 
+        indices_list:List,
+        related_fields:List,
+        user_input:str
+    )->str:
+        prompt_template = """You are an Elasticsearch Database Administrator for this organization. Your job is to create READ-only DSL queries from the user's natural language input.You do NOT have permission to execute write requests on the Elasticsearch database.
+        
+        **Session Context:**
+        - Previous queries in this session: {previous_queries}
+        
+        **Available Indices:**
+        {indices_list}
+        
+        **Brief Description of Each Index:**
+        1. logvehere-alerts-* : This index stores all the network security alerts that we receive from our DNN model, highlighting suspicious activity in incoming data.
+        2. logvehere-probe-tm-* : Stores all data related to filters set under "Capture Filter" section in our Product. Capture Filters allows us to target some specific features of the incoming data which we want to specifically analyze.
+        3. logvehere-probe-ma-* : Stores the rest of incoming data that doesn't get filtered out by "Capture Filter".
+        
+        **Related Schema Fields:**
+        {related_fields}
+        
+        **Instructions:**
+        1. Based on the user's input, use some or all of the related fields and the given indices to create a READ-only DSL query.
+        2. The query should return a list of results matching the user's request.
+        3. Ensure the query syntax is valid Elasticsearch DSL.
+        4. If the user's request seems to require a WRITE operation, politely explain that you can only generate READ queries.
+        5. Consider the session context (previous queries) to understand the conversation flow if needed.
+        
+        **User Input:**
+        {user_input}
+        
+        **Generated DSL Query:**
+        ```json
+        """
+        formated_template = prompt_template.format(
+            previous_queries=json.dumps(previous_queries, indent=2),
+            indices_list="\n".join(f"  - {i}" for i in indices_list),
+            related_fields="\n".join(f"  - {f}" for f in related_fields),
+            user_input=user_input,
+        )
+        print("="*60)
+        print(formated_template)
+        print("="*60)
+        return formated_template
+        
+    
+    def generate_dsl_query(
+        self,
+        previous_queries:List, 
+        indices_list:List,
+        related_fields:List,
+        user_input:List,
+        max_tokens:int=1024,
+        temperature:float=0.1 
+    )->str:
+        
+        prompt = self._build_prompt(previous_queries,indices_list,related_fields,user_input)
+        print("Generating DSL query from LLM...")
+        
+        response = self.llm(
+            prompt, 
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stop=["```\n", "```"],
+            echo=False
+        )
+        
+        generated_text: str = response["choices"][0]["text"].strip()
+        return generated_text
+
+        
     
     
 if __name__ == "__main__":
     query_analyzer = QueryAnalyzer()
     
-    print("Fetched Indices:",query_analyzer.fetch_relevant_indices())
+    relevant_indices = query_analyzer.fetch_relevant_indices()
+    print("Fetched Indices:",relevant_indices)
+    
+    session_history:List[str] = []
+    
+    # print("Fetched Indices:",query_analyzer.fetch_relevant_indices())
     queries = [
-        "list all mails coming from abc@gmail.com",
+        "List all mails coming from abc@gmail.com",
     ]
+    
+    
     
     for q in queries:
         print(f"\nQuery: '{q}'")
         print("-" * 60)
-        related_fields = query_analyzer.process_nl_query(q,top_k=5)
-        print(related_fields)
+ 
+        # Step 1: retrieve relevant schema fields via semantic search
+        related_fields = query_analyzer.process_nl_query(q, top_k=5)
+        print("Related fields:", related_fields)
+ 
+        # Step 2: generate the DSL query using the LLM
+        dsl_query = query_analyzer.generate_dsl_query(
+            previous_queries=session_history,
+            indices_list=relevant_indices,
+            related_fields=related_fields,
+            user_input=q,
+        )
+        print("Generated DSL Query:\n", dsl_query)
+ 
+        # Keep a session history of past natural-language queries
+        session_history.append(q)
     
