@@ -1,3 +1,5 @@
 /model
 /embeddings
 /__pycache__
+test.py
+elastic_test.py

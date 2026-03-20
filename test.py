@@ -179,3 +179,106 @@ if __name__ == "__main__":
         result = query_analyzer.process_query(q,top_k=5)
         print(result)
     
+    
+    
+=============================
+
+def _build_prompt(
+        self,
+        previous_queries:List, 
+        indices_list:List,
+        related_fields:List,
+        user_input:str
+    )->str: THIS WORKS THE BEST
+        # prompt_template = """You are an Elasticsearch Database Administrator for this organization. Your job is to create READ-only DSL queries from the user's natural language input.You do NOT have permission to execute write requests on the Elasticsearch database.
+        
+        # **Session Context:**
+        # - Previous queries in this session: {previous_queries}
+        
+        # **Available Indices:**
+        # {indices_list}
+        
+        # **Brief Description of Each Index:**
+        # 1. logvehere-alerts-* : This index stores all the network security alerts that we receive from our DNN model, highlighting suspicious activity in incoming data.
+        # 2. logvehere-probe-tm-* : Stores all data related to filters set under "Capture Filter" section in our Product. Capture Filters allows us to target some specific features of the incoming data which we want to specifically analyze.
+        # 3. logvehere-probe-ma-* : Stores the rest of incoming data that doesn't get filtered out by "Capture Filter".
+        
+        # **Related Schema Fields:**
+        # {related_fields}
+        
+        # **Instructions:**
+        # 1. Based on the user's input, use some or all of the related fields and the given indices to create a READ-only DSL query.
+        # 2. The query should return a list of results matching the user's request.
+        # 3. Ensure the query syntax is valid Elasticsearch DSL.
+        # 4. If the user's request seems to require a WRITE operation, politely explain that you can only generate READ queries.
+        # 5. Consider the session context (previous queries) to understand the conversation flow if needed.
+        
+        # **User Input:**
+        # {user_input}
+        
+        # **Generated DSL Query:**
+        # ```json
+        # """
+        
+        prompt_template = """You are an Elasticsearch Database Administrator for this organization. Your job is to create READ-only DSL queries from the user's natural language input. You do NOT have permission to execute write requests on the Elasticsearch database.
+
+        **Session Context:**
+        - Previous queries in this session: {previous_queries}
+
+        **Available Indices:**
+        {indices_list}
+
+        **Brief Description of Each Index:**
+        1. logvehere-alerts-* : This index stores all the network security alerts that we receive from our DNN model, highlighting suspicious activity in incoming data.
+        2. logvehere-probe-tm-* : Stores all data related to filters set under "Capture Filter" section in our Product.
+        3. logvehere-probe-ma-* : Stores the rest of incoming data that doesn't get filtered out by "Capture Filter".
+
+        **Related Schema Fields:**
+        {related_fields}
+
+        **Instructions:**
+        1. Based on the user's input, use some or all of the related fields and the given indices to create a READ-only DSL query.
+        2. The query should return a list of results matching the user's request.
+        3. Ensure the query syntax is valid Elasticsearch DSL.
+        4. If the user's request seems to require a WRITE operation, politely explain that you can only generate READ queries.
+        5. Consider the session context (previous queries) to understand the conversation flow if needed.
+        6. Always select the most relevant index (or indices) based on the query intent.
+
+        7. Choose the appropriate HTTP method:
+        - Use GET for standard search queries.
+        - Use POST if:
+        a) the query is very large or complex,
+        b) the operation involves `_msearch`,
+        c) the operation involves `scroll` or deep pagination.
+
+        8. Always include the Elasticsearch endpoint in the format:
+        <METHOD> /<index_name>/_search
+
+        9. The response MUST include both:
+        - The HTTP method + endpoint
+        - The JSON DSL query body
+
+        10. Output strictly in the following format:
+
+        <METHOD> /<index_name>/_search
+        ```json
+        {
+        "query": { ... }
+        }
+        User Input:
+        {user_input}
+
+        Generated DSL Query:
+        """
+
+        formated_template = prompt_template.format(
+            previous_queries=json.dumps(previous_queries, indent=2),
+            indices_list="\n".join(f"  - {i}" for i in indices_list),
+            related_fields="\n".join(f"  - {f}" for f in related_fields),
+            user_input=user_input,
+        )
+        # print("="*60)
+        # print(formated_template)
+        # print("="*60)
+        return formated_template
+    

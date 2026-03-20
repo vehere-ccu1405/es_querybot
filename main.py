@@ -17,7 +17,8 @@ urllib3.disable_warnings()
 
 EMBED_MODEL = "model/bge-small-en-v1.5.Q5_K_M.gguf"
 # EMBED_MODEL = "model/all-MiniLM-L6-v2-Q5_K_M.gguf"
-LLM_MODEL = "/model/Qwen3.5-9B-Q4_K_M.gguf"
+# LLM_MODEL = "model/Qwen3.5-9B-Q4_K_M.gguf"
+LLM_MODEL = "model/Qwen2.5-7B-Instruct-Q6_K_L.gguf"
 MAPPING_JSON_PATH = "raw_mapping.json"
 INDEX_PATH = "embeddings/faiss_index.bin"
 DATA_PATH = "embeddings/field_data.pkl"
@@ -37,14 +38,25 @@ class QueryAnalyzer:
     
         print("Initializing QueryAnalyzer...")
         
-        PATTERNS = [
-            r"^logvehere-alerts-\d{8}$",
-            # r"^logvehere-probe-\d{8}$",
-            r"^logvehere-probe-ma-\d{8}$",
-            r"^logvehere-probe-tm-\d{8}$",
+        self.ALLOWED_READ_MOETHODS = {"GET","POST"}
+        
+        self.BLOCKED_ENDPOINT_KEYWORDS = [
+            "_delete","_update","_bulk","_index","_create","_reindex"
         ]
+        
+        self.INDEX_PATTERN = [re.compile(
+            r"^(logvehere-(probe-ma|probe-tm|alerts)-\d{8})$"
+        )]
+        
+        
+        # PATTERNS = [
+        #     r"^logvehere-alerts-\d{8}$",
+        #     # r"^logvehere-probe-\d{8}$",
+        #     r"^logvehere-probe-ma-\d{8}$",
+        #     r"^logvehere-probe-tm-\d{8}$",
+        # ]
 
-        self.compiled_patterns = [re.compile(P) for P in PATTERNS]
+        # self.compiled_patterns = [re.compile(P) for P in PATTERNS]
 
         # check correct parameter values
         # self.llm = Llama(
@@ -210,7 +222,7 @@ class QueryAnalyzer:
         # print(f"No.of Indices: {len(all_indices)}")    
         filtered_indices = [
             idx["index"] for idx in all_indices 
-            if any(p.match(idx["index"]) for p in self.compiled_patterns)
+            if any(p.match(idx["index"]) for p in self.INDEX_PATTERN)
         ]
         return filtered_indices
     
@@ -221,45 +233,148 @@ class QueryAnalyzer:
         indices_list:List,
         related_fields:List,
         user_input:str
-    )->str:
-        prompt_template = """You are an Elasticsearch Database Administrator for this organization. Your job is to create READ-only DSL queries from the user's natural language input.You do NOT have permission to execute write requests on the Elasticsearch database.
+        )->str:
         
+        # prompt_template = """You are an Elasticsearch Database Administrator for this organization. Your job is to create READ-only Elasticsearch queries from the user's natural language input.
+
+        # You MUST return the complete request including:
+        # - HTTP Method (always GET)
+        # - Endpoint in the format: /<index_name>/_search
+        # - JSON body (DSL query)
+
+        # You do NOT have permission to execute write requests on the Elasticsearch database. 
+        
+        # **Session Context:**
+        # - Previous queries in this session: {previous_queries}
+        
+        # **Available Indices:**
+        # {indices_list}
+        
+        
+        # **Brief Description of Each Index:**
+        # 1. logvehere-alerts-* : This index stores all the network security alerts that we receive from our DNN model, highlighting suspicious activity in incoming data.
+        # 2. logvehere-probe-tm-* : Stores all data related to filters set under "Capture Filter" section in our Product. Capture Filters allows us to target some specific features of the incoming data which we want to specifically analyze.
+        # 3. logvehere-probe-ma-* : Stores the rest of incoming data that doesn't get filtered out by "Capture Filter".
+        
+        # **Related Schema Fields:**
+        # {related_fields}
+        
+        # **Instructions:**
+        # 1. Based on the user's input, use some or all of the related fields and the given indices to create a READ-only query.
+        # 2. The query should return a list of results matching the user's request.
+        # 3. Ensure the query syntax is valid Elasticsearch DSL.
+        # 4. ALWAYS include:
+        #    - HTTP Method: GET
+        #    - Endpoint: /<appropriate_index_name>/_search
+        #    - JSON body
+        # 5. If multiple indices are relevant, choose the most appropriate one or use a wildcard index.
+        # 6. If the user's request seems to require a WRITE operation, politely explain that you can only generate READ queries.
+        # 7. Consider the session context (previous queries) to understand the conversation flow if needed.
+        
+        # **Output Format (STRICT):**
+        # GET /<index_name>/_search
+        # {{
+        #   "query": {{
+        #     ...
+        #   }}
+        # }}
+        
+        # **User Input:**
+        # {user_input}
+        
+        # **Generated Query:**
+        # """
+        prompt_template = """You are an Elasticsearch Database Administrator for this organization. Your job is to create READ-only Elasticsearch queries from the user's natural language input.
+
+        You MUST return the complete request including:
+        - HTTP Method (always GET)
+        - Endpoint in the format: /<index_name>/_search
+        - JSON body (DSL query)
+
+        You do NOT have permission to execute write requests on the Elasticsearch database.
+        
+        ---
         **Session Context:**
         - Previous queries in this session: {previous_queries}
-        
+        ---
+
         **Available Indices:**
         {indices_list}
-        
-        **Brief Description of Each Index:**
-        1. logvehere-alerts-* : This index stores all the network security alerts that we receive from our DNN model, highlighting suspicious activity in incoming data.
-        2. logvehere-probe-tm-* : Stores all data related to filters set under "Capture Filter" section in our Product. Capture Filters allows us to target some specific features of the incoming data which we want to specifically analyze.
-        3. logvehere-probe-ma-* : Stores the rest of incoming data that doesn't get filtered out by "Capture Filter".
-        
+
+        ---
+        **Index Selection Rules (VERY IMPORTANT):**
+
+        1. logvehere-alerts-*  
+        - Use ONLY for security alerts, anomalies, or suspicious activity detected by models.  
+        - DO NOT use for raw or general data queries.
+
+        2. logvehere-probe-tm-*  
+        - Contains filtered/targeted data based on Capture Filters.  
+        - Use when the query refers to specifically monitored or filtered attributes.
+
+        3. logvehere-probe-ma-*  
+        - Contains ALL general/raw incoming data.  
+        - Default index for queries involving emails, IPs, payload fields, or general logs.
+
+        **Multi-Index Rule:**
+        - If the query is general (e.g., emails, IPs, payload fields), use BOTH:
+        logvehere-probe-ma-*,logvehere-probe-tm-*
+        - NEVER use logvehere-alerts-* unless the query explicitly refers to alerts, threats, or anomalies.
+
+        ---
         **Related Schema Fields:**
         {related_fields}
         
+        ---
         **Instructions:**
-        1. Based on the user's input, use some or all of the related fields and the given indices to create a READ-only DSL query.
-        2. The query should return a list of results matching the user's request.
-        3. Ensure the query syntax is valid Elasticsearch DSL.
-        4. If the user's request seems to require a WRITE operation, politely explain that you can only generate READ queries.
-        5. Consider the session context (previous queries) to understand the conversation flow if needed.
+        1. Based on the user's input, use relevant fields and indices to create a READ-only query.
+        2. Ensure the query syntax is valid Elasticsearch DSL.
+        3. ALWAYS include:
+        - HTTP Method: GET
+        - Endpoint: /<index_name>/_search
+        - JSON body
+        4. Carefully choose the correct index:
+        - General data queries → logvehere-probe-ma-*,logvehere-probe-tm-*
+        - Alerts/anomalies only → logvehere-alerts-*
+        5. If multiple indices are required, include them as comma-separated values.
+        6. If the user's request requires a WRITE operation, politely refuse.
+        7. Consider session context if needed.
         
+        ---
+        **CRITICAL OUTPUT RULES:**
+        1. Output ONLY the final query.
+        2. Do NOT include explanations, reasoning, or comments.
+        3. Do NOT describe your choice of index.
+        4. Do NOT wrap the output in markdown or code blocks.
+        5. The response MUST start with: GET 
+        6. The response MUST end immediately after the final closing curly brace
+        7. Any text after the closing curly brace is strictly forbidden.
+
+        ---
+        **Output Format (STRICT):**
+        GET /<index_name>/_search
+        {{
+          "query": {{
+            ...
+          }}
+        }}
+
+        ---
         **User Input:**
         {user_input}
-        
-        **Generated DSL Query:**
-        ```json
-        """
+
+        ---
+        Output:"""
+
         formated_template = prompt_template.format(
             previous_queries=json.dumps(previous_queries, indent=2),
             indices_list="\n".join(f"  - {i}" for i in indices_list),
             related_fields="\n".join(f"  - {f}" for f in related_fields),
             user_input=user_input,
         )
-        print("="*60)
-        print(formated_template)
-        print("="*60)
+        # print("="*60)
+        # print(formated_template)
+        # print("="*60)
         return formated_template
         
     
@@ -269,7 +384,7 @@ class QueryAnalyzer:
         indices_list:List,
         related_fields:List,
         user_input:List,
-        max_tokens:int=1024,
+        max_tokens:int=512,
         temperature:float=0.1 
     )->str:
         
@@ -280,21 +395,48 @@ class QueryAnalyzer:
             prompt, 
             max_tokens=max_tokens,
             temperature=temperature,
-            stop=["```\n", "```"],
+            top_p=0.9,
+            repeat_penalty=1.2,
+            # stop=["```\n", "```"],
+            stop=["\n\n","} GET"],
             echo=False
         )
         
-        generated_text: str = response["choices"][0]["text"].strip()
+        generated_text = response["choices"][0]["text"].strip()
+        # print(type(generated_text))
+        # json_text = json.loads(generated_text)
+        # print(type(json_text))
         return generated_text
+        # return json_text
+        # return response
 
+    def extract_single_query(self,generated_query:str):
+        first_request = generated_query.find("GET")
+        if first_request == -1:
+            return generated_query.strip()
         
+        brace_count = 0
+        end_idx = None 
+        
+        for i, ch in enumerate(generated_query[first_request:]):
+            if ch == '{':
+                brace_count += 1
+            elif ch == "}":
+                brace_count -= 1
+                if brace_count == 0:
+                    end_idx = first_request + i + 1
+                    break
+                
+        return generated_query[first_request:end_idx].strip() if end_idx else generated_query.strip()
+    
+    
     
     
 if __name__ == "__main__":
     query_analyzer = QueryAnalyzer()
     
     relevant_indices = query_analyzer.fetch_relevant_indices()
-    print("Fetched Indices:",relevant_indices)
+    # print("Fetched Indices:",relevant_indices)
     
     session_history:List[str] = []
     
@@ -314,13 +456,17 @@ if __name__ == "__main__":
         print("Related fields:", related_fields)
  
         # Step 2: generate the DSL query using the LLM
-        dsl_query = query_analyzer.generate_dsl_query(
+        generated_query = query_analyzer.generate_dsl_query(
             previous_queries=session_history,
             indices_list=relevant_indices,
             related_fields=related_fields,
             user_input=q,
         )
-        print("Generated DSL Query:\n", dsl_query)
+        
+        print("Generated DSL Query:\n", generated_query)
+        # print("="*50)
+        # cleaned_query = query_analyzer.extract_single_query(generated_query)
+        # print("Single Query:\n", cleaned_query)
  
         # Keep a session history of past natural-language queries
         session_history.append(q)
